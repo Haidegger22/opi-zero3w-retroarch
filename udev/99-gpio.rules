@@ -1,0 +1,3 @@
+# udev-правило: дать группе input доступ к GPIO (нужно для game_input.py/mario_buttons.py)
+# Установка: sudo cp 99-gpio.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="input", MODE="0660"

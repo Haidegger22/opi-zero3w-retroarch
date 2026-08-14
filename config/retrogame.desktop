@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=🎮 RetroArch (NES)
+Comment=Super Mario Bros и другие NES-игры
+Exec=bash /home/orangepi/.openclaw/workspace/retrogame.sh
+Icon=/usr/share/pixmaps/retroarch.svg
+Terminal=false
+Categories=Game;
