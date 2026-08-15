@@ -200,7 +200,7 @@ class GameInput:
     # ── GPIO → A/B ──
     def _gpio(self):
         vals = self.lines.get_values()
-        mapping = [(96, 0x30), (131, 0xFF08)]
+        mapping = [(96, 0xFF08), (131, 0x30)]
         for (line, keysym), v in zip(mapping, vals):
             pressed = (v == 0)  # pull-up: 0 = нажата
             if pressed != (self._gpio_state[line] == 0):
