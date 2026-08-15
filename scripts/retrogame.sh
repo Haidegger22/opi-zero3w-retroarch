@@ -1,9 +1,9 @@
 #!/bin/bash
-# 🕹️ RetroArch (NES) — единый игровой демон + RetroArch
+# 🕹️ RetroArch (NES) — единый игровой демон + выбор игры
 # m5hub НЕ меняем: только пауза на время игры и возврат после.
-# Джойстик V2 = D-pad (стрелки), GPIO A/B = прыжок/бег, CardKB = Start/Select/Esc.
+# Джойстик V2 = D-pad, GPIO A/B = прыжок/удар, CardKB = Start/Select/Esc.
 
-# ── Защита от повторного запуска (двойной клик по иконке) ──
+# ── Защита от повторного запуска ──
 LOCK=/tmp/retrogame.lock
 if [ -f "$LOCK" ]; then
     PID=$(cat "$LOCK" 2>/dev/null)
@@ -11,7 +11,7 @@ if [ -f "$LOCK" ]; then
         echo "[retro] уже запущено (PID $PID) — выхожу"
         exit 0
     fi
-    rm -f "$LOCK"   # stale lock (PID мёртв) — чистим
+    rm -f "$LOCK"
 fi
 echo $$ > "$LOCK"
 
@@ -38,5 +38,5 @@ DISPLAY=:0 python3 /home/orangepi/.openclaw/workspace/game_input.py &
 BRIDGE=$!
 
 sleep 1
-echo "[retro] 🕹️ Запускаю Super Mario Bros..."
-SDL_INPUT_LINUXEV=0 DISPLAY=:0 retroarch -L /usr/lib/aarch64-linux-gnu/libretro/nestopia_libretro.so roms/nes/SuperMarioBros.nes || true
+echo "[retro] 🕹️ Выбор игры..."
+DISPLAY=:0 python3 /home/orangepi/.openclaw/workspace/select_game.py
