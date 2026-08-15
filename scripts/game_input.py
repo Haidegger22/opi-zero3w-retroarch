@@ -165,6 +165,15 @@ class GameInput:
             sdx = sdy = 0
 
         DEAD = 5000
+
+        # Snap к доминирующей оси: диагональный наклон даёт только одну стрелку.
+        # Если одна ось в 2+ раза сильнее другой — слабую зануляем.
+        # Убирает ложные диагонали и «залипание» между направлениями (танчики).
+        if abs(sdx) > abs(sdy) * 2:
+            sdy = 0
+        elif abs(sdy) > abs(sdx) * 2:
+            sdx = 0
+
         LEFT, RIGHT, UP, DOWN = 0xFF51, 0xFF53, 0xFF52, 0xFF54
         self.key(LEFT, sdx < -DEAD)
         self.key(RIGHT, sdx > DEAD)

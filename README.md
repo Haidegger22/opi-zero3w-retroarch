@@ -67,17 +67,21 @@ retroarch --version   # RetroArch v1.14.0
 
 ## 🧩 Шаг 3. PaHub + модули: демон m5hub.py
 
-Демон `scripts/m5hub.py` опрашивает все три устройства через PaHub:
+Демон `m5hub.py` опрашивает все три устройства через PaHub:
 
 - джойстик V2 → курсор мыши + левый клик
 - Scroll → прокрутка + клики
 - CardKB → QWERTY-клавиатура (US-раскладка)
 
+> 📦 Демон живёт в отдельном репозитории **`Haidegger22/opi-zero3w-m5hub`** (он же системный драйвер для рабочего стола). Здесь он только используется как зависимость.
+
 ### Установка
 
 ```bash
 mkdir -p ~/.openclaw/workspace
-cp scripts/m5hub.py ~/.openclaw/workspace/m5hub.py
+cd ~/.openclaw/workspace
+# m5hub.py из своего репозитория:
+curl -o m5hub.py https://raw.githubusercontent.com/Haidegger22/opi-zero3w-m5hub/main/m5hub.py
 
 # systemd-сервис (автозапуск)
 sudo tee /etc/systemd/system/m5hub.service >/dev/null <<'EOF'
@@ -152,6 +156,10 @@ python3 scripts/mario_buttons.py   # жми кнопки — видно PRESS/RE
 | Кнопка A | GPIO 96 | A (прыжок) | `num0` |
 | Кнопка B | GPIO 131 | B (бег/огонь) | `Backspace` |
 | CardKB | CH2 (0x5F) | Start / Select / Esc | `enter` / `space` / `escape` |
+
+### Snap к доминирующей оси
+
+Джойстик работает как **4-направленный D-pad**: если одна ось в 2+ раза сильнее другой — слабая зануляется (`abs(sdx) > abs(sdy) * 2`). Диагональный наклон даёт только одну стрелку — без ложных диагоналей и «залипаний» между направлениями (важно для танчиков/платформеров).
 
 ```bash
 cp scripts/game_input.py ~/.openclaw/workspace/game_input.py
@@ -258,7 +266,6 @@ ROM игры лежит в `~/roms/nes/SuperMarioBros.nes` (путь пропи�
 ```
 ├── README.md                 ← эта инструкция
 ├── scripts/
-│   ├── m5hub.py              ← демон PaHub (джойстик→мышь, скролл, CardKB)
 │   ├── game_input.py         ← игровой мост (джойстик→стрелки, GPIO→A/B, CardKB→Start/Select/Esc)
 │   ├── mario_buttons.py      ← тестер GPIO-кнопок
 │   └── retrogame.sh          ← лаунчер игры
@@ -268,6 +275,8 @@ ROM игры лежит в `~/roms/nes/SuperMarioBros.nes` (путь пропи�
 └── udev/
     └── 99-gpio.rules         ← доступ к GPIO для группы input
 ```
+
+> ℹ️ `m5hub.py` здесь нет — системный демон живёт в своём репозитории [`Haidegger22/opi-zero3w-m5hub`](https://github.com/Haidegger22/opi-zero3w-m5hub) (см. Шаг 3).
 
 ---
 
