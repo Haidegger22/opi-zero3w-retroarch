@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=🎮 Game Boy (GBC/GBA)
+Comment=Shantae и другие GBC/GBA-игры (mGBA)
+Exec=bash /home/orangepi/.openclaw/workspace/retrogame-gbc.sh
+Icon=/usr/share/pixmaps/retroarch.svg
+Terminal=false
+Categories=Game;

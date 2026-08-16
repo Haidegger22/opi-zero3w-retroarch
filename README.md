@@ -1,10 +1,13 @@
 # 🎮 RetroArch + M5Stack на Orange Pi Zero 3W
 
-Полноценная игровая консоль NES на Orange Pi Zero 3W (Allwinner A733, Debian 11 bullseye):
+Полноценная игровая консоль на Orange Pi Zero 3W (Allwinner A733, Debian 11 bullseye):
 
-- **RetroArch 1.14.0** + ядро Nestopia (Super Mario Bros и другие NES-игры)
+- **RetroArch 1.14.0** + ядро Nestopia (**NES** — Super Mario Bros и другие NES-игры)
+- **RetroArch + mGBA** (**Game Boy / GBC / GBA** — Shantae и др., см. [`docs/GBC-GAMEBOY.md`](docs/GBC-GAMEBOY.md))
 - **Управление через M5Stack PaHub**: джойстик V2 (движение), CardKB (Start/Select/Esc)
 - **2 GPIO-кнопки**, выведенные отдельно на гребёнку (прыжок / бег-огонь) — потому что клавиатура CardKB «одноразовая» и не умеет удерживать нажатие
+
+> 🏆 **Важно для всех core'ов:** на Zero 3W с GPU PowerVR у RetroArch рабочий видео-драйвер — **`xvideo`** (`gl` падает с segfault на шейдерах, `sdl2` даёт чёрный экран). Подробности в `docs/GBC-GAMEBOY.md` → «Проблемы».
 
 ---
 
@@ -265,13 +268,19 @@ ROM игры лежит в `~/roms/nes/SuperMarioBros.nes` (путь пропи�
 
 ```
 ├── README.md                 ← эта инструкция
+├── docs/
+│   └── GBC-GAMEBOY.md        ← эмуляция Game Boy (mGBA): установка + отладка видео-драйверов
 ├── scripts/
 │   ├── game_input.py         ← игровой мост (джойстик→стрелки, GPIO→A/B, CardKB→Start/Select/Esc)
 │   ├── mario_buttons.py      ← тестер GPIO-кнопок
-│   └── retrogame.sh          ← лаунчер игры
+│   ├── retrogame.sh          ← лаунчер NES
+│   ├── retrogame-gbc.sh      ← лаунчер GBC/GBA
+│   └── select_game_gbc.py    ← выбор GBC-игры через zenity
 ├── config/
-│   ├── retroarch.cfg         ← конфиг RetroArch (готовые бинды)
-│   └── retrogame.desktop     ← иконка на рабочий стол
+│   ├── retroarch.cfg         ← конфиг RetroArch (готовые бинды NES)
+│   ├── retrogame.desktop     ← иконка NES на рабочий стол
+│   ├── gbc.cfg               ← конфиг GBC (видео xvideo + кнопки)
+│   └── gbc.desktop           ← иконка GBC на рабочий стол
 └── udev/
     └── 99-gpio.rules         ← доступ к GPIO для группы input
 ```
