@@ -116,6 +116,10 @@ class GameInput:
 
     def rd(self, c, a, re, n):
         self.sel(c)
+        # Первый ответ после переключения канала PaHub бывает от ПРЕДЫДУЩЕГО
+        # канала (например, данные джойстика приходят вместо маски клавиатуры,
+        # и в игру уходит ложная стрелка). Один холостой замер это снимает.
+        i2c_rd(self.fd, a, re, n)
         return i2c_rd(self.fd, a, re, n)
 
     def rr(self, c, a, n):
@@ -123,18 +127,19 @@ class GameInput:
         return i2c_rr(self.fd, a, n)
 
     def _cal(self):
-        sx = sy = n = 0
+        xs, ys = [], []
         for _ in range(50):
             try:
                 dd = self.rd(0, 0x63, 0x00, 4)
-                sx += dd[0] | (dd[1] << 8)
-                sy += dd[2] | (dd[3] << 8)
-                n += 1
+                xs.append(dd[0] | (dd[1] << 8))
+                ys.append(dd[2] | (dd[3] << 8))
             except Exception:
                 pass
             time.sleep(0.01)
-        if n:
-            self.cx, self.cy = sx // n, sy // n
+        if xs:
+            # медиана, а не среднее: единичный сбойный замер не уводит центр
+            self.cx = int(statistics.median(xs))
+            self.cy = int(statistics.median(ys))
             print('[game] center X=%d Y=%d' % (self.cx, self.cy))
 
     # ── XTest ──
@@ -172,13 +177,18 @@ class GameInput:
 
         if abs(dx) < 6000 and abs(dy) < 6000:
             self._jhist.clear()
+            sdx = sdy = 0
         else:
             self._jhist.append((dx, dy))
-        if self._jhist:
+            if len(self._jhist) > 5:
+                del self._jhist[0]
+            # Пока накопилось меньше трёх замеров — не двигаем: одиночный
+            # сбойный замер на шине иначе сразу превращается в стрелку
+            # (персонаж «бежит назад» сам по себе).
+            if len(self._jhist) < 3:
+                return
             sdx = statistics.median([p[0] for p in self._jhist])
             sdy = statistics.median([p[1] for p in self._jhist])
-        else:
-            sdx = sdy = 0
 
         DEAD = 5000
 

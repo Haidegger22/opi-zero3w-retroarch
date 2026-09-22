@@ -97,16 +97,35 @@ def stop_bridge():
     bridge_proc = None
 
 
+def wait_m5hub(want, secs=15.0):
+    """Ждём, пока служба реально перейдёт в нужное состояние.
+
+    Без этого ожидания выходило так: мост стартовал и калибровал джойстик, пока
+    драйвер ещё держал шину I2C — центр уезжал, и персонаж бежал сам по себе.
+    """
+    t0 = time.time()
+    while time.time() - t0 < secs:
+        if m5hub_active() == want:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def m5hub_start():
-    if not m5hub_active():
-        run(["sudo", "-n", "systemctl", "start", "m5hub"])
+    run(["sudo", "-n", "systemctl", "start", "m5hub"])
+    if wait_m5hub(True):
         log("🖥️  m5hub поднят — ввод на рабочем столе")
+    else:
+        log("⚠️ m5hub не поднялся за 15 с")
 
 
 def m5hub_stop():
-    if m5hub_active():
-        run(["sudo", "-n", "systemctl", "stop", "m5hub"])
+    run(["sudo", "-n", "systemctl", "stop", "m5hub"])
+    if wait_m5hub(False):
+        time.sleep(0.5)          # шина успокаивается после чужого опроса
         log("🛑 m5hub остановлен — шина отдана игре")
+    else:
+        log("⚠️ m5hub не остановился за 15 с — мост поднимать небезопасно")
 
 
 def on_term(sig, frm):
@@ -141,4 +160,5 @@ if __name__ == "__main__":
             start_bridge()
         time.sleep(2)
     stop_bridge()
+    time.sleep(0.5)              # даём мосту отпустить шину I2C
     log("завершён")
