@@ -7,7 +7,7 @@ game_input.py — единый игровой мост (RetroArch + Mario).
 - CardKB (I2C/PaHub канал 2, 0x5F) → Enter=Start, Space=Select, Esc=выход
 Эмуляция через XTest (X11). Без зависимостей от m5hub.
 """
-import os, fcntl, time, ctypes, collections, statistics
+import os, fcntl, time, ctypes, collections, statistics, subprocess
 import gpiod
 from Xlib import display, X
 from Xlib.ext import xtest
@@ -74,6 +74,10 @@ class GameInput:
         self.state = {}
         self._kl = 0
         self._kb = {}                 # состояние клавиш CardKB (в новом режиме)
+        self._bits_prev = 0           # маска зажатых клавиш в прошлом опросе
+        self._mods_prev = 0           # модификаторы (Shift/Sym/Fn) в прошлом опросе
+        self._fn = False              # слой Fn включён и ждёт клавишу
+        self._swallow_enter = False   # не отдавать Start, пока зажата комбинация
         self._kb_mode(1)              # включаем в клавиатуре режим сканирования нажатий
         self._jhist = collections.deque(maxlen=4)
         # GPIO кнопки (pull-up, 0 = нажата) — libgpiod v2 API
@@ -202,18 +206,56 @@ class GameInput:
             dd = self.rd(2, 0x5F, 0x10, 7)     # 7 байт: 48 клавиш + модификаторы
         except Exception:
             return
-        if not dd or len(dd) < 6:
+        if not dd or len(dd) < 7:
             return
         bits = int.from_bytes(dd[:6], "little")   # бит i = клавиша с индексом i зажата
+        mods = dd[6]                              # 0x01 Shift, 0x02 Sym, 0x04 Fn
+        new = bits & ~self._bits_prev             # клавиши, нажатые именно в этом опросе
+        self._bits_prev = bits
         def held(i):
             return bool((bits >> i) & 1)
+        def newp(i):
+            return bool((new >> i) & 1)
+
+        # ── Fn-комбинации: те же, что работают на рабочем столе ──
+        if (mods & 0x04) and not (self._mods_prev & 0x04):
+            self._fn = True                  # Fn нажат: слой включён и ждёт клавишу
+        self._mods_prev = mods
+        fn_used = False
+        if self._fn:
+            if newp(11):                     # Fn+Backspace — погасить экран
+                self._run('xset', 'dpms', 'force', 'off')
+                print('[game] 🌙 Экран погашен (Fn+Backspace)')
+                fn_used = True
+            elif newp(35):                   # Fn+Enter — свернуть игру, показать рабочий стол
+                self._run('xdotool', 'key', '--clearmodifiers', 'ctrl+alt+d')
+                print('[game] 🗂️ Свернуть игру (Fn+Enter)')
+                self._swallow_enter = True   # в игру Start не отдаём
+                fn_used = True
+            elif new:
+                fn_used = True               # слой одноразовый: расходуется любой клавишей
+        if fn_used:
+            self._fn = False
+
         self._kb[0xFF1B] = held(0)      # Esc
-        self._kb[0xFF0D] = held(35)     # Enter → Start
+        if not held(35):
+            self._swallow_enter = False  # отпустили — снова обычный Start
+        self._kb[0xFF0D] = held(35) and not self._swallow_enter   # Enter → Start
         self._kb[0x0020] = held(47)     # Space → Select
         self._kb[0xFF51] = held(24)     # влево
         self._kb[0xFF52] = held(25)     # вверх
         self._kb[0xFF54] = held(36)     # вниз
         self._kb[0xFF53] = held(37)     # вправо
+
+    def _run(self, *cmd):
+        """Команда рабочего стола: гашение экрана, свернуть окна."""
+        try:
+            env = dict(os.environ)
+            env.setdefault('DISPLAY', ':0')
+            env.setdefault('XAUTHORITY', '/home/orangepi/.Xauthority')
+            subprocess.run(list(cmd), capture_output=True, env=env)
+        except Exception as e:
+            print('[game] команда не выполнена:', e)
 
     def _map(self, code):
         return {
