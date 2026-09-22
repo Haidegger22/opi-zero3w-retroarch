@@ -17,7 +17,8 @@ BRIDGE=""
 cleanup() {
   echo "[gbc] Завершение..."
   [ -n "$BRIDGE" ] && kill "$BRIDGE" 2>/dev/null || true
-  sleep 0.5
+  # сторож уводит свой мост за собой; ждём, чтобы он отпустил шину I2C
+  sleep 1.5
   rm -f "$LOCK"
   echo "[gbc] ✅ Возвращаю m5hub..."
   sudo systemctl start m5hub 2>/dev/null || true
@@ -28,8 +29,8 @@ echo "[gbc] 🛑 Пауза m5hub..."
 sudo systemctl stop m5hub 2>/dev/null || true
 sleep 1
 
-echo "[gbc] 🎮 Запускаю игровой мост..."
-DISPLAY=:0 python3 /home/orangepi/.openclaw/workspace/game_input.py &
+echo "[gbc] 🎮 Запускаю игровой мост со сторожем..."
+DISPLAY=:0 python3 /home/orangepi/.local/bin/input-supervisor.py > /tmp/input-supervisor.log 2>&1 &
 BRIDGE=$!
 
 sleep 1

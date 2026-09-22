@@ -1,6 +1,8 @@
 #!/bin/bash
 # 🕹️ RetroArch (NES) — единый игровой демон + выбор игры
-# m5hub НЕ меняем: только пауза на время игры и возврат после.
+# m5hub НЕ меняем: пауза на время игры и возврат после, а следит за этим
+# сторож input-supervisor.py — он возвращает ввод на рабочий стол,
+# если игру свернуть, и отдаёт обратно игре, когда окно снова на экране.
 # Джойстик V2 = D-pad, GPIO A/B = прыжок/удар, CardKB = Start/Select/Esc.
 
 # ── Защита от повторного запуска ──
@@ -22,7 +24,8 @@ BRIDGE=""
 cleanup() {
   echo "[retro] Завершение..."
   [ -n "$BRIDGE" ] && kill "$BRIDGE" 2>/dev/null || true
-  sleep 0.5
+  # сторож уводит свой мост за собой; ждём, чтобы он отпустил шину I2C
+  sleep 1.5
   rm -f "$LOCK"
   echo "[retro] ✅ Возвращаю m5hub..."
   sudo systemctl start m5hub 2>/dev/null || true
@@ -33,8 +36,8 @@ echo "[retro] 🛑 Пауза m5hub (освобождаю I2C)..."
 sudo systemctl stop m5hub 2>/dev/null || true
 sleep 1
 
-echo "[retro] 🎮 Запускаю игровой мост..."
-DISPLAY=:0 python3 /home/orangepi/.openclaw/workspace/game_input.py &
+echo "[retro] 🎮 Запускаю игровой мост со сторожем..."
+DISPLAY=:0 python3 /home/orangepi/.local/bin/input-supervisor.py > /tmp/input-supervisor.log 2>&1 &
 BRIDGE=$!
 
 sleep 1
