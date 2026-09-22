@@ -73,12 +73,16 @@ class GameInput:
         self.kc = {}
         self.state = {}
         self._kl = 0
+        self._kb = {}                 # состояние клавиш CardKB (в новом режиме)
+        self._kb_mode(1)              # включаем в клавиатуре режим сканирования нажатий
         self._jhist = collections.deque(maxlen=4)
-        # GPIO кнопки (pull-up, 0 = нажата)
-        self.chip = gpiod.Chip('gpiochip0')
-        self.lines = self.chip.get_lines([96, 131])
-        self.lines.request(consumer='game-input', type=gpiod.LINE_REQ_DIR_IN,
-                           flags=gpiod.LINE_REQ_FLAG_BIAS_PULL_UP)
+        # GPIO кнопки (pull-up, 0 = нажата) — libgpiod v2 API
+        from gpiod.line import Direction, Bias, Value
+        self._gv = Value
+        self._req = gpiod.request_lines(
+            '/dev/gpiochip0', consumer='game-input',
+            config={96: gpiod.LineSettings(direction=Direction.INPUT, bias=Bias.PULL_UP),
+                    131: gpiod.LineSettings(direction=Direction.INPUT, bias=Bias.PULL_UP)})
         self._gpio_state = {96: 1, 131: 1}
 
     # ── PaHub ──
@@ -97,6 +101,14 @@ class GameInput:
             pass
         i2c_wr(self.fd, 0x70, [1 << c])
         time.sleep(0.005)
+
+    def _kb_mode(self, m):
+        """Режим клавиатуры: 0 — обычный, 1 — сканирование удержанных клавиш."""
+        try:
+            self.sel(2)
+            i2c_wr(self.fd, 0x5F, [0x20, m])
+        except Exception:
+            pass
 
     def rd(self, c, a, re, n):
         self.sel(c)
@@ -175,29 +187,33 @@ class GameInput:
             sdx = 0
 
         LEFT, RIGHT, UP, DOWN = 0xFF51, 0xFF53, 0xFF52, 0xFF54
-        self.key(LEFT, sdx < -DEAD)
-        self.key(RIGHT, sdx > DEAD)
-        self.key(UP, sdy < -DEAD)
-        self.key(DOWN, sdy > DEAD)
+        self.key(LEFT, (sdx < -DEAD) or self._kb.get(LEFT, False))
+        self.key(RIGHT, (sdx > DEAD) or self._kb.get(RIGHT, False))
+        self.key(UP, (sdy < -DEAD) or self._kb.get(UP, False))
+        self.key(DOWN, (sdy > DEAD) or self._kb.get(DOWN, False))
+        for ks in (0xFF1B, 0xFF0D, 0x0020):
+            self.key(ks, self._kb.get(ks, False))
 
-    # ── CardKB → Start/Select/Esc ──
+    # ── CardKB → Start/Select/Esc + стрелки (с удержанием) ──
+    # Индексы по таблице прошивки M5Stack: 0=Esc, 24=влево, 25=вверх,
+    # 35=Enter, 36=вниз, 37=вправо, 47=пробел.
     def _cardkb(self):
         try:
-            dd = self.rr(2, 0x5F, 1)
-            k = dd[0] if dd else 0
+            dd = self.rd(2, 0x5F, 0x10, 7)     # 7 байт: 48 клавиш + модификаторы
         except Exception:
             return
-        if k == self._kl:
+        if not dd or len(dd) < 6:
             return
-        if self._kl:
-            ks = self._map(self._kl)
-            if ks:
-                self.key(ks, False)
-        self._kl = k
-        if k:
-            ks = self._map(k)
-            if ks:
-                self.key(ks, True)
+        bits = int.from_bytes(dd[:6], "little")   # бит i = клавиша с индексом i зажата
+        def held(i):
+            return bool((bits >> i) & 1)
+        self._kb[0xFF1B] = held(0)      # Esc
+        self._kb[0xFF0D] = held(35)     # Enter → Start
+        self._kb[0x0020] = held(47)     # Space → Select
+        self._kb[0xFF51] = held(24)     # влево
+        self._kb[0xFF52] = held(25)     # вверх
+        self._kb[0xFF54] = held(36)     # вниз
+        self._kb[0xFF53] = held(37)     # вправо
 
     def _map(self, code):
         return {
@@ -208,13 +224,13 @@ class GameInput:
 
     # ── GPIO → A/B ──
     def _gpio(self):
-        vals = self.lines.get_values()
         mapping = [(96, 0xFF08), (131, 0x30)]
-        for (line, keysym), v in zip(mapping, vals):
-            pressed = (v == 0)  # pull-up: 0 = нажата
+        for line, keysym in mapping:
+            v = self._req.get_value(line)
+            pressed = (v == self._gv.INACTIVE)  # pull-up: INACTIVE(0) = нажата
             if pressed != (self._gpio_state[line] == 0):
                 self.key(keysym, pressed)
-                self._gpio_state[line] = v
+                self._gpio_state[line] = 0 if pressed else 1
 
     def run(self):
         print('[game] bridge started (joystick=arrows, GPIO=A/B, CardKB=Start/Select/Esc)')
@@ -226,6 +242,7 @@ class GameInput:
 
     def cleanup(self):
         self.release_all()
+        self._kb_mode(0)          # возвращаем клавиатуре обычный режим
         try:
             os.close(self.fd)
         except Exception:
